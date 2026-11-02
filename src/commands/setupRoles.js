@@ -7,6 +7,7 @@ const {
   ButtonStyle
 } = require('discord.js');
 const config = require('../config');
+const { getOrCreateRole } = require('../utils/roleHelper');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -15,6 +16,24 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
   async execute(interaction) {
+    const { guild, channel } = interaction;
+    await interaction.deferReply({ ephemeral: true });
+
+    // Pre-create or verify all required roles exist with proper colors
+    const newlyCreated = [];
+    for (const [key, roleConf] of Object.entries(config.roles)) {
+      try {
+        const role = await getOrCreateRole(guild, key, roleConf);
+        if (role) {
+          // Check if newly created
+          const isBrandNew = (Date.now() - role.createdTimestamp) < 10000;
+          if (isBrandNew) newlyCreated.push(role.name);
+        }
+      } catch (err) {
+        console.error(`[SETUP-ROLES WARN] Failed to verify role ${roleConf.name}:`, err);
+      }
+    }
+
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle('🎭 THE DUDES — Choose Your Game & Ping Roles')
@@ -78,14 +97,18 @@ module.exports = {
         .setStyle(ButtonStyle.Secondary)
     );
 
-    await interaction.channel.send({
+    await channel.send({
       embeds: [embed],
       components: [row1, row2]
     });
 
-    await interaction.reply({
-      content: '✅ Role selection embed has been posted to this channel!',
-      ephemeral: true
+    let confirmationText = '✅ Role selection embed has been posted!';
+    if (newlyCreated.length > 0) {
+      confirmationText += `\n✨ Auto-created **${newlyCreated.length}** missing roles with custom colors: \`${newlyCreated.join(', ')}\`!`;
+    }
+
+    await interaction.editReply({
+      content: confirmationText
     });
   }
 };

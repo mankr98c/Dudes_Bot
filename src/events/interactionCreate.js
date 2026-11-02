@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../config');
 const { activeLFGs } = require('../commands/lfg');
+const { getOrCreateRole } = require('../utils/roleHelper');
 
 module.exports = {
   name: 'interactionCreate',
@@ -42,20 +43,12 @@ module.exports = {
         const roleConf = config.roles[customId];
         if (!roleConf) return;
 
-        // Try to find role by configured ID or by name
-        let targetRole = null;
-        if (roleConf.id) {
-          targetRole = guild.roles.cache.get(roleConf.id);
-        }
-        if (!targetRole) {
-          targetRole = guild.roles.cache.find(
-            r => r.name.toLowerCase() === roleConf.name.toLowerCase()
-          );
-        }
+        // Find or auto-create role on demand
+        let targetRole = await getOrCreateRole(guild, customId, roleConf);
 
         if (!targetRole) {
           return interaction.reply({
-            content: `⚠️ The role **${roleConf.name}** was not found on this server. Please create a role named **"${roleConf.name}"** in Server Settings > Roles!`,
+            content: `⚠️ Could not find or create the role **${roleConf.name}**. Please verify that the bot has the **Manage Roles** permission enabled!`,
             ephemeral: true
           });
         }
